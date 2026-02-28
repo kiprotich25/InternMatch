@@ -8,6 +8,7 @@ import {
   generateCvImprovements,
   generateInterviewQuestions,
   generateNetworkingSuggestions,
+  generateSkillGaps,
   reviewInterviewAnswer,
 } from '../services/aiService';
 
@@ -132,6 +133,64 @@ router.post(
     }
   },
 );
+
+// GET /api/ai/skill-gaps — AI-powered skill gap analysis based on user's course + real internship data
+router.get('/skill-gaps', requireAuth, async (req: AuthedRequest, res) => {
+  try {
+    const user = await User.findById(req.userId);
+    if (!user) return res.status(404).json({ message: 'User not found' });
+
+    // Aggregate the most frequently requested skills across all internships
+    const pipeline = [
+      { $unwind: '$skillsRequired' },
+      { $group: { _id: '$skillsRequired', count: { $sum: 1 } } },
+      { $sort: { count: -1 } },
+      { $limit: 60 },
+    ] as any[];
+
+    const skillAgg = await Internship.aggregate(pipeline);
+    const allTopSkills: string[] = skillAgg.map((s: any) => s._id).filter(Boolean);
+
+    // If no internships in db yet, use career-field specific well-known skills
+    const inDemandSkills =
+      allTopSkills.length > 0
+        ? allTopSkills
+        : inferSkillsFromCourse(user.course || 'Technology');
+
+    const gaps = await generateSkillGaps(
+      user.course || 'Technology',
+      user.skills || [],
+      inDemandSkills,
+    );
+
+    return res.json({ course: user.course, gaps });
+  } catch (e) {
+    const msg = (e as Error)?.message ?? 'Unknown error';
+    return res.status(500).json({ message: `Failed to generate skill gaps: ${msg}` });
+  }
+});
+
+/** Fallback skill lists when DB has no internships yet */
+function inferSkillsFromCourse(course: string): string[] {
+  const c = course.toLowerCase();
+  if (c.includes('computer') || c.includes('software') || c.includes('it') || c.includes('information')) {
+    return ['Python', 'JavaScript', 'React', 'Node.js', 'SQL', 'Docker', 'Git', 'TypeScript', 'REST APIs', 'AWS', 'Linux', 'Machine Learning'];
+  }
+  if (c.includes('data') || c.includes('analytics') || c.includes('statistics')) {
+    return ['Python', 'R', 'SQL', 'Pandas', 'Tableau', 'Power BI', 'Machine Learning', 'TensorFlow', 'Spark', 'Excel', 'Statistics', 'Jupyter'];
+  }
+  if (c.includes('design') || c.includes('ux') || c.includes('ui') || c.includes('art')) {
+    return ['Figma', 'Adobe XD', 'User Research', 'Prototyping', 'Accessibility', 'HTML', 'CSS', 'Illustration', 'Typography', 'Usability Testing'];
+  }
+  if (c.includes('business') || c.includes('commerce') || c.includes('management') || c.includes('finance')) {
+    return ['Excel', 'Power BI', 'SQL', 'Python', 'Financial Modelling', 'Project Management', 'Tableau', 'Business Analysis', 'Presentation Skills'];
+  }
+  if (c.includes('electric') || c.includes('engineer') || c.includes('mechanical')) {
+    return ['MATLAB', 'AutoCAD', 'Python', 'C++', 'Circuit Design', 'Embedded Systems', 'CAD', 'IoT', 'PLC Programming'];
+  }
+  // Generic STEM fallback
+  return ['Python', 'SQL', 'Excel', 'Git', 'Communication', 'Data Analysis', 'Project Management', 'Problem Solving'];
+}
 
 export default router;
 

@@ -1,5 +1,5 @@
 {
-  "name": "internship-match-frontend",
+  "name": "frontend",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -21,7 +21,8 @@
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "react-router-dom": "^6.23.0",
-    "recharts": "^2.12.7"
+    "recharts": "^2.12.7",
+    "tailwind-merge": "^3.5.0"
   },
   "devDependencies": {
     "@types/react": "^18.2.66",

@@ -141,6 +141,48 @@ Provide:
   return result.response.text();
 }
 
+export async function generateSkillGaps(
+  course: string,
+  currentSkills: string[],
+  inDemandSkills: string[],
+): Promise<{ skill: string; reason: string; priority: 'high' | 'medium' | 'low'; resource: string }[]> {
+  const prompt = `
+You are a career advisor helping a student identify skill gaps for internship applications.
+
+Student's course / field: ${course}
+Student's current skills: ${currentSkills.length > 0 ? currentSkills.join(', ') : 'None listed yet'}
+
+Skills most often required in current internship listings for their field:
+${inDemandSkills.join(', ')}
+
+Identify the top 6 most important skills the student should learn to become more competitive.
+Focus only on skills they do NOT already have.
+Return ONLY valid JSON — no markdown fences, no extra text — as an array of objects:
+[
+  {
+    "skill": "skill name",
+    "reason": "one-sentence explanation of why this skill matters for their field",
+    "priority": "high | medium | low",
+    "resource": "one free learning resource URL or platform name"
+  }
+]
+`.trim();
+
+  const model = getModel();
+  const result = await model.generateContent(prompt);
+  const text = result.response.text().trim();
+
+  // Strip potential markdown code fences if model adds them
+  const clean = text.replace(/^```(?:json)?\n?/i, '').replace(/\n?```$/i, '');
+
+  try {
+    return JSON.parse(clean);
+  } catch {
+    // If JSON parse fails, return a safe fallback so the endpoint doesn't crash
+    return [];
+  }
+}
+
 export async function generateNetworkingSuggestions(user: IUser, internship: IInternship) {
   const prompt = `
 You are a career mentor helping a student with networking for an internship.
